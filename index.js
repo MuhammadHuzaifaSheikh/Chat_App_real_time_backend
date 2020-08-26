@@ -11,46 +11,64 @@ app.use(bodeParser.json({limit: '5000kb'}))
 
 app.get('/', function (req, res) {
     console.log('listen');
-    res.send({hello:'hello'})
+    res.send({hello: 'hello'})
 })
 
 
 const server = require('http').createServer(app);
-const options = { /* ... */ };
+const options = { /* ... */};
 const io = require('socket.io')(server, options);
 
 let users = {}
 let usersName = []
+var rooms;
 
 io.on('connection', (socket) => {
 
+
+    socket.on('join_room',room=>{
+        socket.join(room)
+        rooms=room;
+    })
+
+
     socket.on('new_user_joined', data => {
-        users[socket.id]=data.name
+        users[socket.id] = data.name
         usersName.push(users[socket.id])
-        console.log(usersName, ' add');
 
-
-        socket.broadcast.emit('user_joined', {message:`${users[socket.id]} joined the chat `,time:new Date().toLocaleTimeString(),name:'Admin'});
-            socket.emit('welcome', {message:`${users[socket.id]} welcome to the chat `,time:new Date().toLocaleTimeString(),name:'Admin'});
-        io.emit('users',usersName);
+        console.log(data);
+        socket.to(data.room).broadcast.emit('user_joined', {
+            message: `${users[socket.id]} joined the chat `,
+            time: new Date().toLocaleTimeString(),
+            name: 'Admin'
+        });
+        socket.emit('welcome', {
+            message: `${users[socket.id]} welcome to the chat `,
+            time: new Date().toLocaleTimeString(),
+            name: 'Admin'
+        });
+        io.to(data.room).emit('users', {usersName,rooms});
 
 
     });
+
     socket.on('sendMessage', message => {
-        socket.broadcast.emit('receiveMessage', {message: message.message,time:message.time,name:message.name});
-
-
+        socket.to(message.room).broadcast.emit('receiveMessage', {message: message.message, time: message.time, name: message.name});
     });
 
 
     socket.on('disconnect', () => {
         // socket.rooms === {}
-        socket.broadcast.emit('leave', {message:`${users[socket.id]} has left the chat `,time:new Date().toLocaleTimeString(),name:'admin'});
-        var usernameIndex= usersName.indexOf(users[socket.id])
-        usersName.splice(usernameIndex,1)
-        console.log(usersName,' removed');
-        io.emit('userDisconnect',usersName);
-        delete users[socket.id]
+        console.log('disconnect',rooms);
+            socket.to(rooms).broadcast.emit('leave', {
+                message: `${users[socket.id]} has left the chat `,
+                time: new Date().toLocaleTimeString(),
+                name: 'admin'
+            });
+            var usernameIndex = usersName.indexOf(users[socket.id])
+            usersName.splice(usernameIndex, 1)
+            io.to(rooms).emit('userDisconnectName', {usersName,rooms});
+            delete users[socket.id]
 
 
 
@@ -58,14 +76,7 @@ io.on('connection', (socket) => {
     });
 
 
-
-
-
-
-
-
 });
-
 
 
 app.set('port', process.env.PORT || 4000);
