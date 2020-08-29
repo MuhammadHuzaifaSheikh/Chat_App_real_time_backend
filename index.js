@@ -1,5 +1,6 @@
 const express = require('express');
 const bodeParser = require('body-parser');
+const {addUser, removeUser, getUser, getUsersInRoom} = require('./user');
 
 
 var cors = require('cors')
@@ -10,67 +11,62 @@ app.use(bodeParser.json({limit: '5000kb'}))
 
 
 app.get('/', function (req, res) {
-    console.log('listen');
     res.send({hello: 'hello'})
 })
-
 
 const server = require('http').createServer(app);
 const options = { /* ... */};
 const io = require('socket.io')(server, options);
 
-let users = {}
-let usersName = []
-var rooms;
 
 io.on('connection', (socket) => {
-
-
-    socket.on('join_room',room=>{
+    socket.on('join_room', room => {
         socket.join(room)
-        rooms=room;
+        rooms = room;
     })
-
-
     socket.on('new_user_joined', data => {
-        users[socket.id] = data.name
-        usersName.push(users[socket.id])
-
-        console.log(data);
-        socket.to(data.room).broadcast.emit('user_joined', {
-            message: `${users[socket.id]} joined the chat `,
-            time: new Date().toLocaleTimeString(),
-            name: 'Admin'
-        });
-        socket.emit('welcome', {
-            message: `${users[socket.id]} welcome to the chat `,
-            time: new Date().toLocaleTimeString(),
-            name: 'Admin'
-        });
-        io.to(data.room).emit('users', {usersName,rooms});
+        const {user} = addUser({id: socket.id, name: data.name, room: rooms});
+        if (user) {
+            socket.to(user.room).broadcast.emit('user_joined', {
+                message: `${user.name} joined the chat `,
+                time: new Date().toLocaleTimeString(),
+                name: 'Admin'
+            });
+            socket.emit('welcome', {
+                message: `${user.name} welcome to the chat `,
+                time: new Date().toLocaleTimeString(),
+                name: 'Admin'
+            });
 
 
+         let users=   getUsersInRoom(user.room)
+            io.to(user.room).emit('roomData', {room: user.room, users });
+
+        }
     });
-
     socket.on('sendMessage', message => {
-        socket.to(message.room).broadcast.emit('receiveMessage', {message: message.message, time: message.time, name: message.name});
+        const user = getUser(socket.id);
+        if (user) {
+            socket.to(user.room).broadcast.emit('receiveMessage', {
+                message: message.message,
+                time: message.time,
+                name: user.name
+            });
+        }
     });
-
-
     socket.on('disconnect', () => {
-        // socket.rooms === {}
-        console.log('disconnect',rooms);
-            socket.to(rooms).broadcast.emit('leave', {
-                message: `${users[socket.id]} has left the chat `,
+        const user = removeUser(socket.id);
+        if (user) {
+            let users=   getUsersInRoom(user.room)
+            socket.to(user.room).emit('roomDataDisconnect', {users});
+            socket.to(user.room).broadcast.emit('leave', {
+                message: `${user.name} has left the chat `,
                 time: new Date().toLocaleTimeString(),
                 name: 'admin'
             });
-            var usernameIndex = usersName.indexOf(users[socket.id])
-            usersName.splice(usernameIndex, 1)
-            io.to(rooms).emit('userDisconnectName', {usersName,rooms});
-            delete users[socket.id]
 
 
+        }
 
 
     });
