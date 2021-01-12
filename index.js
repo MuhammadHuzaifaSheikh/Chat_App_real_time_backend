@@ -30,18 +30,33 @@ io.on('connection', (socket) => {
             socket.to(user.room).broadcast.emit('user_joined', {
                 message: `${user.name} joined the chat `,
                 time: new Date().toLocaleTimeString(),
-                name: 'Admin'
+                name: 'Admin',
+                type:'text',
             });
+
             socket.emit('welcome', {
                 message: `${user.name} welcome to the chat `,
                 time: new Date().toLocaleTimeString(),
-                name: 'Admin'
+                name: 'Admin',
+                type:'text',
             });
 
 
          let users=   getUsersInRoom(user.room)
             io.to(user.room).emit('roomData', {room: user.room, users });
 
+        }
+        else {
+            socket.emit('sameNameError', 'This User is already exist please select a different name');
+        }
+    });
+    socket.on('writing', message => {
+        const user = getUser(socket.id);
+        if (user) {
+            socket.to(user.room).broadcast.emit('some_one_writing', {
+                message: `${user.name} is writing`,
+
+            });
         }
     });
     socket.on('sendMessage', message => {
@@ -50,9 +65,11 @@ io.on('connection', (socket) => {
             socket.to(user.room).broadcast.emit('receiveMessage', {
                 message: message.message,
                 time: message.time,
-                name: user.name
+                name: user.name,
+                type:message.type
             });
         }
+
     });
     socket.on('disconnect', () => {
         const user = removeUser(socket.id);
@@ -62,7 +79,8 @@ io.on('connection', (socket) => {
             socket.to(user.room).broadcast.emit('leave', {
                 message: `${user.name} has left the chat `,
                 time: new Date().toLocaleTimeString(),
-                name: 'admin'
+                name: 'admin',
+                type:'text',
             });
 
 
